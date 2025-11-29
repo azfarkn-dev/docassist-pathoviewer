@@ -1,0 +1,9 @@
+__pycache__
+*.egg-info
+slides/
+*.svs
+*.tif
+*.tiff
+*.ndpi
+
+docker-compose-local.yml

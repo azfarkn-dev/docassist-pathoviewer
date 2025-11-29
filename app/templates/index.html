@@ -1,0 +1,1262 @@
+<!doctype html>
+{% raw %}
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>DoctorAssist.Ai</title>
+  <link rel="icon" type="image/png" href="https://kdt.com.kw/wp-content/uploads/2025/05/DoctorAssistLogo.png">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/openseadragon@5.0.1/build/openseadragon/openseadragon.min.js"></script>
+  <style>
+    :root{
+      --bg:#f7f9fc; --panel:#ffffff; --muted:#6b7280;
+      --border:#e5e7eb; --accent:#2563eb; --chip:#f3f4f6;
+      --shadow:0 6px 20px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.05);
+      --radius:12px; --danger:#ef4444; --selected:#e0e7ff;
+    }
+    *{box-sizing:border-box}
+    html,body,#app{height:100%;margin:0}
+    body{background:var(--bg);color:#111827;font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif}
+
+    header{position:sticky;top:0;z-index:100;padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.03)}
+    .brand{display:flex;align-items:center;gap:10px}
+    .brand img{height:28px;width:auto}
+    .brand-text{font-weight:700;color:var(--accent);letter-spacing:.2px}
+
+    .container{display:grid;grid-template-columns:290px 1fr;height:calc(100% - 54px)}
+    aside{border-right:1px solid var(--border);overflow:auto;background:var(--chip)}
+    main{min-height:0;display:flex;flex-direction:column;position:relative}
+
+    /* Search */
+    .search{padding:12px}
+    .search input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;color:#111827;outline:none}
+
+    /* Tree */
+    .tree{padding:8px}
+    .dir{padding:8px 10px;border-radius:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all .15s;margin-bottom:2px}
+    .dir:hover{background:#eef2f7}
+    .dir.selected{background:var(--selected);border:1px solid var(--accent);font-weight:500}
+    .dir .right{display:flex;align-items:center;gap:8px}
+    .children{padding-left:12px;border-left:1px dashed #cbd5e1;margin-left:6px}
+
+    /* Browser controls */
+    .browser-controls{padding:12px 14px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center}
+    .slide-search{flex:1;position:relative}
+    .slide-search input{width:100%;padding:8px 12px 8px 36px;border-radius:8px;border:1px solid var(--border);background:#fff;outline:none}
+    .slide-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:0.5}
+    .view-toggle{display:flex;gap:4px;background:var(--chip);padding:4px;border-radius:8px}
+    .view-btn{padding:6px 10px;border:none;background:transparent;cursor:pointer;border-radius:6px;color:#6b7280;transition:all .15s}
+    .view-btn.active{background:#fff;color:#111827;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .slide-count{color:var(--muted);font-size:0.9rem}
+    .loading-badge{background:#fbbf24;color:#92400e;padding:2px 8px;border-radius:999px;font-size:0.75rem;font-weight:600}
+    
+    /* Grid view */
+    .grid-container{flex:1;overflow-y:auto;background:#fff;position:relative}
+    .grid{padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;position:relative}
+    
+    /* List view */
+    .list-container{flex:1;overflow-y:auto;background:#fff}
+    .list{padding:8px}
+    .list-item{display:flex;align-items:center;padding:10px 14px;border:1px solid var(--border);background:#fff;margin-bottom:4px;border-radius:8px;cursor:pointer;transition:all .15s}
+    .list-item:hover{background:#f0f2f6;transform:translateX(2px)}
+    .list-thumb{width:60px;height:45px;background:#f1f5f9;border-radius:6px;margin-right:14px;overflow:hidden;flex-shrink:0;position:relative}
+    .list-thumb img{width:100%;height:100%;object-fit:cover}
+    .list-thumb .loading-spinner{position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,0.9)}
+    .list-info{flex:1;min-width:0}
+    .list-name{font-weight:500;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .list-meta{display:flex;gap:12px;margin-top:4px;font-size:0.85rem;color:var(--muted)}
+    .list-ext{background:#eef2ff;color:#1e3a8a;padding:2px 6px;border-radius:4px;font-size:0.75rem}
+
+    /* Card styles */
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;overflow:hidden;box-shadow:var(--shadow);transition:transform .12s, box-shadow .12s;position:relative}
+    .card:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(0,0,0,.08)}
+    .card.loading .thumb{background:#f3f4f6}
+    .card.loading .thumb::after{
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent);
+      animation:shimmer 1.5s infinite;
+    }
+    @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+    .thumb{width:100%;height:180px;background:#f1f5f9;display:grid;place-items:center;position:relative;overflow:hidden}
+    .thumb img{width:100%;height:100%;object-fit:contain;background:#fff}
+    .thumb .fallback{position:absolute;inset:0;display:grid;place-items:center}
+    .meta{padding:10px 12px;font-size:.9rem;color:#374151}
+    .meta-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+    .filename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+    .filesize{color:var(--muted);font-size:0.85rem}
+    .ext-pill{font-size:.72rem;background:#eef2ff;color:#1e3a8a;padding:2px 8px;border-radius:999px;border:1px solid #c7d2fe}
+
+    /* Pagination */
+    .pagination{padding:12px 14px;background:#fff;border-top:1px solid var(--border);display:flex;justify-content:center;align-items:center;gap:8px}
+    .page-btn{padding:6px 12px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;transition:all .15s;min-width:36px;text-align:center}
+    .page-btn:hover:not(:disabled){background:var(--chip)}
+    .page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .page-btn:disabled{opacity:0.5;cursor:not-allowed}
+    .page-info{color:var(--muted);padding:0 12px}
+
+    /* Viewer */
+    #viewer{position:relative;background:#fff;min-height:0;display:grid;grid-template-columns:1fr 320px;flex:1}
+    #viewer.no-sidebar{grid-template-columns:1fr}
+    #osd-container{position:relative;background:#fff}
+    #osd{position:absolute;inset:0;background:#fff}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none;z-index:10}
+
+    /* Back button */
+    .back-btn{position:absolute;top:16px;left:16px;z-index:20;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.98);color:#111827;cursor:pointer;display:grid;place-items:center;box-shadow:var(--shadow);transition:all .2s}
+    .back-btn:hover{background:#f3f4f6;transform:scale(1.05)}
+
+    /* Sidebar */
+    .sidebar{background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:20px}
+    .sidebar h3{margin:0;font-size:1.1rem;color:#111827}
+    .info-section{background:var(--chip);border-radius:10px;padding:14px}
+    .info-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+    .info-row:last-child{border-bottom:none}
+    .info-label{color:var(--muted);font-size:0.9rem}
+    .info-value{color:#111827;font-weight:500;font-size:0.9rem;text-align:right;max-width:60%;word-break:break-word}
+    .label-image{width:100%;border-radius:8px;margin-top:10px;cursor:pointer}
+    .toggle-sidebar{position:absolute;top:16px;right:16px;z-index:20;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.98);cursor:pointer;display:grid;place-items:center}
+
+    /* Toolbar */
+    .toolbar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:.5rem;background:rgba(255,255,255,.98);border:1px solid var(--border);border-radius:999px;padding:.35rem .5rem;box-shadow:var(--shadow);z-index:15}
+    .tb-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:#fff;color:#111827;cursor:pointer;display:grid;place-items:center;transition:all .15s}
+    .tb-btn:hover{background:#f3f4f6}
+    .tb-sep{width:1px;background:var(--border);margin:0 4px}
+
+    /* Empty state */
+    .empty{color:var(--muted);display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px}
+
+    /* Layout modes */
+    .mode-grid main{grid-template-rows:1fr}
+    .mode-viewer main{grid-template-rows:1fr}
+
+    /* Side-menu resolution warning (full-width, left-aligned) */
+    .warnline {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 6px;
+      background: #fef3c7;      /* amber-50 */
+      color: #92400e;            /* amber-900 */
+      border: 1px solid #f59e0b; /* amber-500 */
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      line-height: 1.3;
+      max-width: 100%;
+      word-wrap: break-word;
+    }
+
+    .warnline svg {
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .warntext {
+      white-space: normal; /* allow wrapping across the available width */
+    }
+
+    .warn svg {
+      flex: 0 0 auto;
+    }
+
+    .warn:hover .tip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    /* Fullscreen adjustments */
+    #viewer:-webkit-full-screen .toolbar,
+    #viewer:-webkit-full-screen .back-btn,
+    #viewer:-webkit-full-screen .toggle-sidebar,
+    #viewer:-webkit-full-screen canvas.overlay,
+    #viewer:fullscreen .toolbar,
+    #viewer:fullscreen .back-btn,
+    #viewer:fullscreen .toggle-sidebar,
+    #viewer:fullscreen canvas.overlay{
+      display:flex !important;
+      visibility:visible !important;
+    }
+
+    /* Debug panel */
+    .debug-panel{position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 12px;border-radius:8px;font-size:0.75rem;font-family:monospace;z-index:1000;display:none}
+    .debug-panel.show{display:block}
+  </style>
+</head>
+<body>
+<div id="app">
+  <router-view></router-view>
+</div>
+
+<script>
+const { createApp } = Vue;
+const { createRouter, createWebHistory } = VueRouter;
+
+// Folder component (unchanged)
+const Folder = {  
+  name: 'Folder',
+  props: ["node", "selectedPath"],
+  emits: ["select-dir"],
+  data(){ 
+    return { 
+      open: false,
+      loading: false,
+      childrenLoaded: false,
+      localChildren: null
+    } 
+  },
+  methods:{
+    async toggle(){ 
+      if (!this.open && !this.childrenLoaded && this.node.has_children) {
+        this.loading = true;
+        try {
+          const response = await fetch('/api/expand?' + new URLSearchParams({path: this.node.path}));
+          if (response.ok) {
+            this.localChildren = await response.json();
+            this.childrenLoaded = true;
+          }
+        } catch (e) {
+          console.error('Failed to load children:', e);
+        } finally {
+          this.loading = false;
+        }
+      }
+      
+      this.open = !this.open;
+      this.$emit("select-dir", this.node.path);
+    }
+  },
+  computed:{ 
+    hasChildren(){ 
+      return this.node.has_children || (this.node.children && this.node.children.length > 0);
+    },
+    children() {
+      return this.localChildren || this.node.children || [];
+    },
+    isSelected(){ 
+      return this.selectedPath === this.node.path;
+    },
+    slideCountText() {
+      if (!this.node.slide_count || this.node.slide_count === 0) return '';
+      return this.node.slide_count === 1 ? '1 slide' : `${this.node.slide_count} slides`;
+    }
+  },
+  template:`
+    <div>
+      <div class="dir" @click="toggle" :aria-expanded="open" :class="{selected: isSelected}">
+        <div>
+          <strong>{{ node.name }}</strong>
+          <small v-if="slideCountText" style="color:var(--muted)"> · {{ slideCountText }}</small>
+          <span v-if="loading" style="margin-left:8px;color:var(--muted)">(loading...)</span>
+        </div>
+        <div class="right">
+          <span v-if="hasChildren" style="color:var(--muted)">{{ open ? "▾" : "▸" }}</span>
+        </div>
+      </div>
+      <div class="children" v-if="open && children.length > 0">
+        <folder v-for="c in children" :key="c.id" :node="c" :selected-path="selectedPath" @select-dir="$emit('select-dir',$event)"></folder>
+      </div>
+    </div>`
+}
+
+// Custom directive (unchanged)
+const observeVisibleDirective = {
+  mounted(el, binding) {
+    const vm = binding.instance;
+    if (!vm.viewportObserver) {
+      vm._toObserve.push(el);
+      return;
+    }
+    vm.viewportObserver.observe(el);
+  },
+  updated(el, binding) {
+    const vm = binding.instance;
+    if (vm && vm.viewportObserver) {
+      vm.viewportObserver.observe(el);
+    }
+  },
+  unmounted(el, binding) {
+    const vm = binding.instance;
+    if (vm && vm.viewportObserver) {
+      vm.viewportObserver.unobserve(el);
+    }
+  }
+};
+
+// Main Browser Component
+const Browser = {
+  components:{ Folder },
+  data(){ 
+    return { 
+      trees:[], 
+      q:"", 
+      selectedPath:null,
+      slides:[],
+      filteredSlides:[],
+      visibleSlides:[],
+      slideSearch:"",
+      viewMode:'grid',
+      currentPage:1,
+      itemsPerPage:50,
+      logoUrl:null,
+      debug:false,
+      activeRequests:0,
+      pendingRequests: new Map(),
+      requestQueue: [],
+      maxConcurrentThumbs: 2,
+      loadingSlides: new Set(),
+      thumbSlots: 4,
+      thumbInFlight: 0,
+      thumbQueue: [],
+      visibleRange:{start:0, end:0},
+      lastScrollTime:0,
+      scrollDebounceTimer:null,
+      viewportObserver:null,
+      _toObserve: []
+    } 
+  },
+  
+  computed:{
+    filteredTrees(){
+      if(!this.q) return this.trees
+      const term = this.q.toLowerCase()
+      const match = (n)=> n.name.toLowerCase().includes(term) || (n.children||[]).some(match)
+      const clone = (n)=> ({...n, children:(n.children||[]).map(clone).filter(match)})
+      return this.trees.map(clone).filter(match)
+    },
+    
+    paginatedSlides(){
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      return this.filteredSlides.slice(start, start + this.itemsPerPage);
+    },
+    
+    totalPages(){
+      return Math.ceil(this.filteredSlides.length / this.itemsPerPage);
+    },
+    
+    pageNumbers(){
+      const pages = [];
+      const total = this.totalPages;
+      const current = this.currentPage;
+      
+      if(total <= 7) {
+        for(let i = 1; i <= total; i++) pages.push(i);
+      } else {
+        if(current <= 3) {
+          for(let i = 1; i <= 5; i++) pages.push(i);
+          pages.push('...');
+          pages.push(total);
+        } else if(current >= total - 2) {
+          pages.push(1);
+          pages.push('...');
+          for(let i = total - 4; i <= total; i++) pages.push(i);
+        } else {
+          pages.push(1);
+          pages.push('...');
+          for(let i = current - 1; i <= current + 1; i++) pages.push(i);
+          pages.push('...');
+          pages.push(total);
+        }
+      }
+      return pages;
+    }
+  },
+  
+  methods:{
+    prettySize(b){ 
+      if(!b && b!==0) return ""; 
+      const u=["B","KB","MB","GB","TB"]; 
+      let i=0; 
+      while(b>1024 && i<u.length-1){ b/=1024; i++ } 
+      return b.toFixed(b<10 && i>0 ? 1 : 0) + " " + u[i] 
+    },
+    baseName(name){ const i=name.lastIndexOf("."); return i>0 ? name.slice(0,i) : name },
+    extName(name){ const i=name.lastIndexOf("."); return i>0 ? name.slice(i+1) : "" },
+    extUpper(name){ return this.extName(name).toUpperCase() },
+    formatDate(ts){ 
+      if(!ts) return "";
+      const d = new Date(ts * 1000);
+      return d.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+    },
+
+    ensureObserver() {
+      if (this.viewportObserver) {
+        try { this.viewportObserver.disconnect(); } catch(e) {}
+        this.viewportObserver = null;
+      }
+      const root = this.$refs.gridContainer || null;
+
+      if ('IntersectionObserver' in window) {
+        this.viewportObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const slideId = entry.target.dataset.slideId;
+              const slide = this.visibleSlides.find(s => s.id === slideId);
+              if (slide && !slide.thumbUrl && !slide.thumbError) {
+                this.loadThumbnail(slide);
+              }
+            }
+          });
+        }, {
+          root,
+          rootMargin: '200px',
+          threshold: 0.01,
+        });
+
+        if (this._toObserve.length) {
+          this._toObserve.forEach(el => this.viewportObserver.observe(el));
+          this._toObserve = [];
+        }
+      }
+    },
+
+    async makeRequest(url, priority = 0) {
+      const controller = new AbortController();
+      const requestId = Math.random().toString(36);
+      
+      this.pendingRequests.set(requestId, {controller, priority, url});
+      this.activeRequests++;
+      
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {'X-Priority': priority.toString()}
+        });
+        return response;
+      } finally {
+        this.pendingRequests.delete(requestId);
+        this.activeRequests--;
+      }
+    },
+    
+    cancelAllRequests() {
+      for (const [id, req] of this.pendingRequests) {
+        req.controller.abort();
+      }
+      this.pendingRequests.clear();
+      this.requestQueue = [];
+      this.loadingSlides.clear();
+      this.activeRequests = 0;
+      this.thumbQueue = [];
+      this.thumbInFlight = 0;
+    },
+
+    cancelRequestsOutsideViewport() {
+      const inViewport = new Set(
+        this.visibleSlides
+          .slice(this.visibleRange.start, this.visibleRange.end)
+          .map(s => s.id)
+      );
+      
+      for (const [id, req] of this.pendingRequests) {
+        if (req.url.includes('/api/thumb/')) {
+          const slideId = req.url.split('/api/thumb/')[1];
+          if (!inViewport.has(slideId)) {
+            req.controller.abort();
+            this.pendingRequests.delete(id);
+            this.loadingSlides.delete(slideId);
+          }
+        }
+      }
+    },
+
+    revokeThumb(slide){
+      if (slide && slide.thumbUrl) {
+        URL.revokeObjectURL(slide.thumbUrl);
+        slide.thumbUrl = null;
+      }
+    },
+
+    loadThumbnail(slide) {
+      if (!slide || slide.thumbUrl || slide.thumbError || this.loadingSlides.has(slide.id)) return;
+      const slideIndex = this.visibleSlides.indexOf(slide);
+      const viewportCenter = (this.visibleRange.start + this.visibleRange.end) / 2;
+      const distance = Math.abs(slideIndex - viewportCenter);
+      const priority = Math.max(0, 1000 - distance * 10);
+
+      this.thumbQueue.push({ slide, priority });
+      this.thumbQueue.sort((a,b) => b.priority - a.priority);
+      this._drainThumbQueue();
+    },
+
+    async _drainThumbQueue() {
+      while (this.thumbInFlight < this.thumbSlots && this.thumbQueue.length) {
+        const { slide, priority } = this.thumbQueue.shift();
+        this._fetchThumb(slide, priority).catch(()=>{});
+      }
+    },
+
+    async _fetchThumb(slide, priority) {
+      if (!slide || slide.thumbUrl || slide.thumbError || this.loadingSlides.has(slide.id)) return;
+      this.loadingSlides.add(slide.id);
+      slide.loading = true;
+      this.thumbInFlight++;
+
+      const controller = new AbortController();
+      const requestId = `thumb-${slide.id}`;
+      this.pendingRequests.set(requestId, {controller, priority, url: `/api/thumb/${slide.id}`});
+
+      try {
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const resp = await fetch(`/api/thumb/${slide.id}`, {
+          signal: controller.signal,
+          headers: {'X-Priority': String(priority)}
+        });
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+          const blob = await resp.blob();
+          this.revokeThumb(slide);
+          slide.thumbUrl = URL.createObjectURL(blob);
+        } else {
+          slide.thumbError = true;
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          slide.thumbError = true;
+        }
+      } finally {
+        slide.loading = false;
+        this.pendingRequests.delete(requestId);
+        this.loadingSlides.delete(slide.id);
+        this.thumbInFlight = Math.max(0, this.thumbInFlight - 1);
+        this._drainThumbQueue();
+      }
+    },
+
+    updateViewport() {
+      if (this.viewMode !== 'grid' || !this.$refs.gridContainer) return;
+      
+      const container = this.$refs.gridContainer;
+      const scrollTop = container.scrollTop;
+      const clientHeight = container.clientHeight;
+      
+      const itemsPerRow = Math.floor(container.clientWidth / 260) || 4;
+      const rowHeight = 280;
+      const firstRow = Math.floor(scrollTop / rowHeight);
+      const lastRow = Math.ceil((scrollTop + clientHeight) / rowHeight);
+      
+      const newStart = Math.max(0, firstRow * itemsPerRow);
+      const newEnd = Math.min(this.visibleSlides.length, (lastRow + 1) * itemsPerRow);
+      
+      if (Math.abs(newStart - this.visibleRange.start) > 2 || 
+          Math.abs(newEnd - this.visibleRange.end) > 2) {
+        this.visibleRange = {start: newStart, end: newEnd};
+        
+        this.cancelRequestsOutsideViewport();
+        
+        for (let i = newStart; i < newEnd; i++) {
+          const slide = this.visibleSlides[i];
+          if (slide && !slide.thumbUrl && !slide.thumbError) {
+            this.loadThumbnail(slide);
+          }
+        }
+      }
+    },
+
+    handleScroll(event) {
+      if (this.viewMode !== 'grid') return;
+      
+      this.updateViewport();
+      
+      if (this.scrollDebounceTimer) {
+        clearTimeout(this.scrollDebounceTimer);
+      }
+      
+      this.scrollDebounceTimer = setTimeout(() => {
+        const container = event.target;
+        const scrollHeight = container.scrollHeight;
+        const scrollTop = container.scrollTop;
+        const clientHeight = container.clientHeight;
+        
+        if (scrollTop + clientHeight > scrollHeight - 200) {
+          this.loadMoreSlides();
+        }
+      }, 100);
+    },
+
+    async loadTrees(){ 
+      try {
+        const response = await this.makeRequest("/api/tree");
+        if (response.ok) {
+          this.trees = await response.json();
+        }
+      } catch (e) {
+        console.error('Failed to load trees:', e);
+      }
+    },
+    
+    selectDir(path){
+      this.visibleSlides.forEach(s => this.revokeThumb(s));
+      this.cancelAllRequests();
+      this.selectedPath = path;
+      this.openDir(path);
+    },
+    
+    async openDir(path){ 
+      this.cancelAllRequests();
+      this.visibleSlides.forEach(s => this.revokeThumb(s));
+      this.visibleSlides = [];
+      
+      try {
+        const response = await this.makeRequest("/api/dir?" + new URLSearchParams({path}));
+        if (response.ok) {
+          this.slides = await response.json();
+          this.filteredSlides = [...this.slides];
+          this.currentPage = 1;
+          this.slideSearch = "";
+          this.initializeView();
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          console.error('Failed to load directory:', e);
+        }
+      }
+    },
+    
+    filterSlides(){
+      this.cancelAllRequests();
+      this.visibleSlides.forEach(s => this.revokeThumb(s));
+      const term = this.slideSearch.toLowerCase();
+      if(!term) {
+        this.filteredSlides = [...this.slides];
+      } else {
+        this.filteredSlides = this.slides.filter(s => 
+          s.name.toLowerCase().includes(term)
+        );
+      }
+      this.currentPage = 1;
+      this.initializeView();
+    },
+    
+    initializeView(){
+      if (this.viewMode === 'grid') {
+        this.visibleSlides = this.filteredSlides.map(s => ({
+          ...s,
+          loading: false,
+          thumbUrl: null,
+          thumbError: false
+        }));
+
+        this.$nextTick(async () => {
+          const ok = await this.waitForGridRoot();
+          if (!ok) {
+            this.forcePrimeThumbnails();
+            return;
+          }
+
+          this.ensureObserver();
+          this.updateViewport();
+          setTimeout(() => this.updateViewport(), 0);
+
+          if (this.thumbInFlight === 0 && this.pendingRequests.size === 0) {
+            this.forcePrimeThumbnails();
+          }
+        });
+      } else {
+        this.$nextTick(() => {
+          this.paginatedSlides.forEach(slide => {
+            if (!slide.thumbUrl && !slide.thumbError) {
+              this.loadThumbnail(slide);
+            }
+          });
+        });
+      }
+    },
+
+    async waitForGridRoot(retries = 20) {
+      while (retries-- > 0) {
+        await this.$nextTick();
+        if (this.$refs.gridContainer) return true;
+        await new Promise(r => setTimeout(r, 16));
+      }
+      return !!this.$refs.gridContainer;
+    },
+
+    forcePrimeThumbnails(count = 24) {
+      const end = Math.min(this.visibleSlides.length, count);
+      for (let i = 0; i < end; i++) {
+        const s = this.visibleSlides[i];
+        if (s && !s.thumbUrl && !s.thumbError) this.loadThumbnail(s);
+      }
+    },
+
+    loadMoreSlides(){
+      this.updateViewport();
+    },
+    
+    switchViewMode(mode){
+      this.visibleSlides.forEach(s => this.revokeThumb(s));
+      this.cancelAllRequests();
+      this.viewMode = mode;
+      this.initializeView();
+    },
+
+    goToPage(page){
+      this.paginatedSlides.forEach(s => this.revokeThumb(s));
+      this.cancelAllRequests();
+      this.currentPage = page;
+      this.initializeView();
+    },
+
+    // Updated: Use router navigation instead of local state
+    view(slide){
+    this.$router.push(`/slide/${slide.id}`);
+    this.cancelAllRequests();
+}
+  },
+  
+mounted(){ 
+  window.vueApp = this;
+  this.loadTrees(); 
+  console.log('Current route:', this.$route); // Add this line
+  
+  window.addEventListener('beforeunload', () => {
+    this.cancelAllRequests();
+  });
+  
+  this.ensureObserver();
+  this.$nextTick(() => this.updateViewport());
+},
+  
+  beforeUnmount() {
+    this.cancelAllRequests();
+    if (this.viewportObserver) {
+      this.viewportObserver.disconnect();
+    }
+    this.visibleSlides.forEach(s => this.revokeThumb(s));
+  },
+
+  template: `
+    <div class="mode-grid">
+      <header>
+        <div class="brand">
+          <img src="https://kdt.com.kw/wp-content/uploads/2025/05/DoctorAssistLogo.png" alt="Logo">
+        </div>
+        <div style="flex:1"></div>
+        <span v-if="activeRequests > 0" class="loading-badge">{{ activeRequests }} loading</span>
+      </header>
+
+      <div class="container">
+        <aside>
+          <div class="search">
+            <input v-model="q" placeholder="Filter folders…" aria-label="Filter folders"/>
+          </div>
+          <div class="tree">
+            <folder v-for="t in filteredTrees" :key="t.id" :node="t" :selected-path="selectedPath" @select-dir="selectDir"></folder>
+          </div>
+        </aside>
+
+        <main>
+          <!-- Browser controls -->
+          <div class="browser-controls">
+            <div class="slide-search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+              </svg>
+              <input v-model="slideSearch" placeholder="Search slides..." @input="filterSlides">
+            </div>
+            
+            <div class="view-toggle">
+              <button class="view-btn" :class="{active: viewMode === 'grid'}" @click="switchViewMode('grid')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                </svg>
+              </button>
+              <button class="view-btn" :class="{active: viewMode === 'list'}" @click="switchViewMode('list')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="slide-count">
+              {{ filteredSlides.length }} {{ filteredSlides.length === 1 ? 'slide' : 'slides' }}
+              <span v-if="slideSearch">(filtered)</span>
+            </div>
+          </div>
+
+          <!-- Grid view -->
+          <div v-if="viewMode === 'grid'" class="grid-container" @scroll="handleScroll" ref="gridContainer">
+            <div class="grid">
+              <div v-for="s in visibleSlides" 
+                   :key="s.id" 
+                   class="card" 
+                   :class="{loading: s.loading}"
+                   @click="view(s)" 
+                   :title="s.name"
+                   :data-slide-id="s.id"
+                   v-observe-visible>
+                <div class="thumb">
+                  <img v-if="s.thumbUrl" 
+                       :src="s.thumbUrl" 
+                       alt="preview"
+                       loading="lazy"/>
+                  <div v-else class="fallback" aria-hidden="true">
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.6">
+                      <rect x="3" y="3" width="18" height="14" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <path d="M21 20l-5.5-5.5a2 2 0 0 0-2.8 0L3 20"></path>
+                    </svg>
+                  </div>
+                </div>
+                <div class="meta">
+                  <div class="meta-row">
+                    <span class="filename" :title="s.name">{{ baseName(s.name) }}</span>
+                    <span class="ext-pill">{{ extUpper(s.name) }}</span>
+                  </div>
+                  <div class="meta-row">
+                    <span class="filesize">{{ prettySize(s.size) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- List view -->
+          <div v-if="viewMode === 'list'" class="list-container">
+            <div class="list">
+              <div v-for="s in paginatedSlides" 
+                   :key="s.id" 
+                   class="list-item" 
+                   @click="view(s)"
+                   :data-slide-id="s.id">
+                <div class="list-thumb">
+                  <div v-if="s.loading" class="loading-spinner">⟳</div>
+                  <img v-else-if="s.thumbUrl" 
+                       :src="s.thumbUrl" 
+                       alt="preview"/>
+                </div>
+                <div class="list-info">
+                  <div class="list-name" :title="s.name">{{ s.name }}</div>
+                  <div class="list-meta">
+                    <span>{{ prettySize(s.size) }}</span>
+                    <span>{{ formatDate(s.mtime) }}</span>
+                    <span class="list-ext">{{ extUpper(s.name) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pagination for list view -->
+          <div v-if="viewMode === 'list' && totalPages > 1" class="pagination">
+            <button class="page-btn" @click="goToPage(1)" :disabled="currentPage === 1">«</button>
+            <button class="page-btn" @click="goToPage(currentPage-1)" :disabled="currentPage === 1">‹</button>
+            
+            <template v-for="p in pageNumbers">
+              <button v-if="p !== '...'" 
+                      class="page-btn" 
+                      :class="{active: p === currentPage}"
+                      @click="goToPage(p)">{{ p }}</button>
+              <span v-else class="page-info">...</span>
+            </template>
+            
+            <button class="page-btn" @click="goToPage(currentPage+1)" :disabled="currentPage === totalPages">›</button>
+            <button class="page-btn" @click="goToPage(totalPages)" :disabled="currentPage === totalPages">»</button>
+            
+            <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+          </div>
+
+          <!-- Empty state -->
+          <div v-if="!filteredSlides.length" class="empty">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.4">
+              <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+            </svg>
+            <span v-if="!slides.length">Select a folder containing slides</span>
+            <span v-else>No slides match your search</span>
+          </div>
+        </main>
+      </div>
+
+      <!-- Debug panel -->
+      <div class="debug-panel" :class="{show: debug}">
+        Active: {{ activeRequests }}<br>
+        Queue: {{ requestQueue.length }}<br>
+        Visible: {{ visibleRange.start }}-{{ visibleRange.end }}
+      </div>
+    </div>
+  `
+};
+
+// Slide Viewer Component (NEW - for individual slide routes)
+const SlideViewer = {
+  data() {
+    return {
+      slideId: null,
+      osd: null,
+      slideMeta: null,
+      associatedImages: [],
+      showSidebar: true,
+      isFullscreen: false
+    }
+  },
+  mounted() {
+    this.slideId = this.$route.params.slideId;
+    this.loadSlide();
+    
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', this.handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange);
+  },
+  beforeUnmount() {
+    // Clean up event listeners
+    document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange);
+  },
+  methods: {
+    async loadSlide() {
+      try {
+        // Load metadata
+        const metaResp = await fetch("/api/meta/" + this.slideId);
+        if (metaResp.ok) {
+          this.slideMeta = await metaResp.json();
+        }
+
+        // WAIT for DOM to be fully ready
+        await this.$nextTick();
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // SIMPLE OpenSeadragon initialization
+        this.osd = OpenSeadragon({
+          id: "osd",
+          tileSources: "/dzi/" + this.slideId + ".dzi",
+          showNavigator: true,
+          navigatorPosition: 'BOTTOM_RIGHT',
+          navigatorSizeRatio: 0.15,
+          minZoomLevel: 0.001,
+          maxZoomLevel: 40,
+          showNavigationControl: false,  // This hides the default zoom buttons
+  showZoomControl: false,        // This explicitly hides zoom controls
+  showHomeControl: false,        // This hides home button
+  showFullPageControl: false,    // This hides fullscreen button
+  // Optional: if you want to keep the navigator but without controls
+  navigatorAutoFade: false
+        });
+
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    },
+    
+    zoomIn() {
+      if (this.osd) {
+        this.osd.viewport.zoomBy(1.5);
+      }
+    },
+    
+    zoomOut() {
+      if (this.osd) {
+        this.osd.viewport.zoomBy(0.5);
+      }
+    },
+    
+    resetView() {
+      if (this.osd) {
+        this.osd.viewport.goHome();
+      }
+    },
+    
+    toggleFullscreen() {
+      const container = document.getElementById('osd-container');
+      if (!container) return;
+      
+      if (!this.isFullscreen) {
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+      }
+    },
+    
+    handleFullscreenChange() {
+      this.isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+  },
+  template: `
+    <div style="height:100vh;display:flex;flex-direction:column">
+      <header style="padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;background:#fff;">
+        <img src="https://kdt.com.kw/wp-content/uploads/2025/05/DoctorAssistLogo.png" alt="Doctor Assist Logo" style="height:32px;width:auto;">
+      </header>
+      <div style="flex:1;display:flex;">
+        <div id="osd-container" style="flex:1;position:relative;">
+          <div id="osd" style="width:100%;height:100%;"></div>
+          
+          <!-- Toolbar with zoom controls -->
+          <div class="toolbar">
+            <button class="tb-btn" @click="zoomIn" title="Zoom In">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="11" y1="8" x2="11" y2="14"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+              </svg>
+            </button>
+            
+            <button class="tb-btn" @click="zoomOut" title="Zoom Out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+              </svg>
+            </button>
+            
+            <button class="tb-btn" @click="resetView" title="Reset">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+            </button>
+            
+            <div class="tb-sep"></div>
+            
+            <button class="tb-btn" @click="toggleFullscreen" :title="isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path v-if="!isFullscreen" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                <path v-else d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+
+// Create router
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    {
+      path: '/',
+      name: 'browser',
+      component: Browser
+    },
+    {
+      path: '/slide/:slideId',
+      name: 'slide',
+      component: SlideViewer,
+      props: true
+    }
+  ]
+});
+
+// Create and mount app
+const app = createApp({});
+app.use(router);
+app.component('Folder', Folder);
+app.directive('observe-visible', observeVisibleDirective);
+app.mount("#app");
+
+// Ruler function (unchanged)
+function attachRuler(viewer, mppX, opts = {}) {
+  const canvas = document.getElementById("ruler");
+  const options = {
+    targetCssWidth: 220,
+    majorTicks: 3,
+    tickLenCss: 5,
+    barThicknessCss: 2,
+    labelFontSizeCss: 12,
+    pillPaddingCss: 12,
+    minPillWidthCss: 160,
+    gapLabelToBarCss: 6,
+    safeBottomMarginCss: 2,
+    pillBgRGBA: "rgba(255,255,255,0.8)",
+    pillBorderRGBA: "rgba(17,24,39,0.10)",
+    strokeRGBA: "#111827",
+    ...opts
+  };
+
+  if (!viewer || !canvas) {
+    return () => {};
+  }
+
+  function resize() {
+    if (!viewer || !viewer.element) return;
+    const DPR = window.devicePixelRatio || 1;
+    const rect = viewer.element.getBoundingClientRect();
+    canvas.width  = Math.max(1, Math.floor(rect.width * DPR));
+    canvas.height = Math.max(1, Math.floor(rect.height * DPR));
+    canvas.style.width  = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+  }
+
+  function nice(v) {
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const d = v / p;
+    const step = d < 2 ? 1 : d < 5 ? 2 : 5;
+    return step * p;
+  }
+
+  function redraw() {
+    if (!viewer || !viewer.element) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const DPR = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const vp = viewer.viewport;
+    const zoom = vp.viewportToImageZoom(vp.getZoom(true));
+
+    const rect = viewer.element.getBoundingClientRect();
+    const imgPx = options.targetCssWidth / zoom;
+    const um = imgPx * mppX;
+    const niceUm = nice(um);
+    const barCss = (niceUm / mppX) * zoom;
+    const barPx  = barCss * DPR;
+
+    const labelText = niceUm >= 1000
+      ? `${(niceUm/1000).toFixed(niceUm % 1000 === 0 ? 0 : 1)} mm`
+      : `${Math.round(niceUm)} µm`;
+
+    const tickLen = options.tickLenCss * DPR;
+    const barTh   = options.barThicknessCss * DPR;
+    const pad     = options.pillPaddingCss * DPR;
+    const minPillW= options.minPillWidthCss * DPR;
+    const gapLbl2Bar = options.gapLabelToBarCss * DPR;
+    const safeBottomMargin = options.safeBottomMarginCss * DPR;
+
+    const fontPx = options.labelFontSizeCss * DPR;
+    ctx.font = `${fontPx}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+    const labelW = ctx.measureText(labelText).width;
+
+    const pillInnerW = Math.max(labelW, barPx);
+    const pillW = Math.max(minPillW, pillInnerW + pad * 2);
+    const pillH = Math.max(36 * DPR, fontPx + gapLbl2Bar + barTh + tickLen + pad * 2);
+
+    const screenPad = 12 * DPR;
+    let pillX = 30 * DPR;
+    let pillY = canvas.height - (100 * DPR) - pillH;
+    pillX = Math.max(screenPad, Math.min(pillX, canvas.width  - pillW - screenPad));
+    pillY = Math.max(screenPad, Math.min(pillY, canvas.height - pillH - screenPad));
+
+    ctx.save();
+    const rx = 12 * DPR;
+    ctx.fillStyle = options.pillBgRGBA;
+    ctx.strokeStyle = options.pillBorderRGBA;
+    ctx.lineWidth = 1 * DPR;
+    ctx.beginPath();
+    ctx.moveTo(pillX + rx, pillY);
+    ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillH, rx);
+    ctx.arcTo(pillX + pillW, pillY + pillH, pillX, pillY + pillH, rx);
+    ctx.arcTo(pillX, pillY + pillH, pillX, pillY, rx);
+    ctx.arcTo(pillX, pillY, pillX + pillW, pillY, rx);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    const contentX = pillX + (pillW - pillInnerW) / 2;
+    const contentTop = pillY + pad;
+    const safeTop = pillY + pad;
+    const safeBottom = pillY + pillH - pad - safeBottomMargin;
+
+    let labelY = contentTop + fontPx;
+    let yRule  = labelY + gapLbl2Bar + barTh / 2;
+    let tickBottom = yRule + tickLen;
+
+    if (tickBottom > safeBottom) {
+      const shiftUp = tickBottom - safeBottom;
+      labelY -= shiftUp;
+      yRule  -= shiftUp;
+      tickBottom -= shiftUp;
+    }
+    if (labelY - fontPx < safeTop) {
+      const shiftDown = safeTop - (labelY - fontPx);
+      labelY += shiftDown;
+      yRule  += shiftDown;
+    }
+
+    const barX = contentX + (pillInnerW - barPx) / 2;
+
+    ctx.fillStyle = options.strokeRGBA;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(labelText, pillX + pillW / 2 - labelW / 2, labelY);
+
+    ctx.strokeStyle = options.strokeRGBA;
+    ctx.lineWidth = barTh;
+    ctx.beginPath();
+    ctx.moveTo(barX, yRule);
+    ctx.lineTo(barX + barPx, yRule);
+    ctx.stroke();
+
+    const ticks = Math.max(2, Math.floor(options.majorTicks));
+    const segments = ticks - 1;
+    for (let i = 0; i < ticks; i++) {
+      const t = i / segments;
+      const x = barX + t * barPx;
+      ctx.beginPath();
+      ctx.moveTo(x, yRule);
+      ctx.lineTo(x, Math.min(yRule + tickLen, safeBottom));
+      ctx.stroke();
+    }
+
+    const vue = window.vueApp;
+    if (vue && vue.resolutionSuspect) {
+      const tri = 16 * DPR;
+      const inset = 6 * DPR;
+      const x0 = pillX + pillW - tri - inset;
+      const y0 = pillY + inset;
+
+      ctx.save();
+      ctx.strokeStyle = "#d97706";
+      ctx.fillStyle = "#fef3c7";
+      ctx.lineWidth = 2 * DPR;
+
+      ctx.beginPath();
+      ctx.moveTo(x0 + tri / 2, y0);
+      ctx.lineTo(x0 + tri, y0 + tri);
+      ctx.lineTo(x0, y0 + tri);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#92400e";
+      ctx.font = `${11 * DPR}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("!", x0 + tri / 2, y0 + tri * 0.62);
+      ctx.restore();
+    }
+  }
+
+  const onResize = () => { resize(); redraw(); };
+  const onViewport = () => redraw();
+  const onFull = () => { setTimeout(onResize, 100); };
+
+  resize();
+  viewer.addHandler("update-viewport", onViewport);
+  viewer.addHandler("full-screen", onFull);
+  viewer.addOnceHandler("open", onResize);
+  window.addEventListener("resize", onResize);
+
+  return () => {
+    try { window.removeEventListener("resize", onResize); } catch(e) {}
+    try { viewer && viewer.removeHandler("update-viewport", onViewport); } catch(e) {}
+    try { viewer && viewer.removeHandler("full-screen", onFull); } catch(e) {}
+  };
+}
+
+</script>
+</body>
+</html>
+{% endraw %}
